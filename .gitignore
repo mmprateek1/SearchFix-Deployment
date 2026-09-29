@@ -2,5 +2,3 @@ node_modules/
 .env
 tmp/
 data/runtime/
-# Internal reference records stay local; the local setup archive includes them.
-data/reference/history.json
