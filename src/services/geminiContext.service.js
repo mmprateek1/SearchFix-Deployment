@@ -21,7 +21,8 @@ export function geminiKeyMiddleware(req, res, next) {
         return res.status(400).json({ error: "Invalid Gemini API key format. Add your key again in the extension." });
     }
     const allowed = (process.env.ALLOWED_GEMINI_KEY_HASHES || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
-    if ((process.env.RENDER || process.env.NODE_ENV === "production" || allowed.length) && !allowed.includes(hashGeminiKey(key))) {
+    const allowAll = allowed.includes("*");
+    if ((process.env.RENDER || process.env.NODE_ENV === "production" || allowed.length) && !allowAll && !allowed.includes(hashGeminiKey(key))) {
         return res.status(403).json({ error: "This key is not approved for this SearchFix server. Ask the administrator to add its SHA-256 fingerprint." });
     }
     return next();

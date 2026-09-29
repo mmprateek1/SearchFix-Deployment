@@ -18,6 +18,8 @@ test("Render binds PORT on all interfaces and refuses an unconfigured public ser
   assert.throws(() => runtimeConfig({ RENDER: "true", PORT: "10000" }), /ALLOWED_GEMINI_KEY_HASHES/);
   assert.deepEqual(runtimeConfig({ RENDER: "true", PORT: "10000", ALLOWED_GEMINI_KEY_HASHES: hashGeminiKey(key) }),
     { hosted: true, host: "0.0.0.0", port: 10000 });
+  assert.deepEqual(runtimeConfig({ RENDER: "true", PORT: "10000", ALLOWED_GEMINI_KEY_HASHES: "*" }),
+    { hosted: true, host: "0.0.0.0", port: 10000 });
 });
 
 test("hosted extension configuration grants only the selected HTTPS backend", () => {
