@@ -4,10 +4,26 @@
   "version": "1.5.0",
   "description": "Read SearchFix comments and selected PDF attachments, then review evidence in a read-only assistant.",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
-  "host_permissions": ["https://tv.datatracetitle.com/*", "http://localhost:3000/*", "http://127.0.0.1:3000/*", "https://*.onrender.com/*"],
-  "action": { "default_title": "Open SearchFix Typing Assistant" },
-  "background": { "service_worker": "background.js" },
-  "side_panel": { "default_path": "panel.html" },
-  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://tv.datatracetitle.com/*",
+    "https://searchfix-deployment.onrender.com/*"
+  ],
+  "action": {
+    "default_title": "Open SearchFix Typing Assistant"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  }
 }

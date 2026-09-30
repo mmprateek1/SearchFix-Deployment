@@ -1,2 +1,2 @@
-// Set by scripts/configure-backend.mjs when preparing a hosted extension build.
-export const BACKEND_ORIGIN = "http://localhost:3000";
+// Analysis service for this extension build. No credentials are stored here.
+export const BACKEND_ORIGIN = "https://searchfix-deployment.onrender.com";
