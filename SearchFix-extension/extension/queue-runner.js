@@ -4,9 +4,9 @@ import { readOrderPage, readAttachment, readSupportingView, openSupportingLink }
 // Dependencies are injected so the full multi-order flow can be tested without
 // sending order data to Gemini or interacting with production tasks.
 export class QueueRunner {
-  constructor({ tabs, inject, api, settings, onProgress = () => {}, onResult = () => {}, onOrderState = () => {},
+  constructor({ tabs, inject, api, settings, onProgress = () => {}, onResult = () => {}, onOrderState = () => {}, onAnalysis = () => {}, onDocuments = () => {},
     wait = ms => new Promise(resolve => setTimeout(resolve, ms)), log = () => {} }) {
-    Object.assign(this, { tabs, inject, api, settings, onProgress, onResult, onOrderState, wait, log });
+    Object.assign(this, { tabs, inject, api, settings, onProgress, onResult, onOrderState, onAnalysis, onDocuments, wait, log });
     this.stopped = false;
     this.ownedTabs = new Set();
   }
@@ -110,6 +110,8 @@ export class QueueRunner {
     const step1 = await this.api("analyze-comments", order, true);
     if (step1.orderNumber !== order.orderNumber) throw new Error("Comment result belongs to another order.");
     await this.assertUnchanged(tabId, snapshot);
+    this.currentAnalysis = step1;
+    this.onAnalysis(step1);
     if (step1.status !== "AWAITING_DOCUMENTS") return step1;
 
     const required = requiredTypes(step1);
@@ -136,7 +138,10 @@ export class QueueRunner {
       try { taText = (await this.openSource(tabId, snapshot, "ta")).text || ""; }
       catch (error) { this.log('source.failed',{kind:'ta'}); warnings.push(`Typing Assistant: ${error.message}`); }
     }
-    if (selected.length > 6) return this.review(order.orderNumber, "More than 6 corresponding PDFs were found; select the required documents manually.", step1);
+    const documents=selected.map(file=>({name:file.name,type:file.type,status:"FOUND"}));
+    if(taText)documents.push({name:"Typing Assistant text",type:"TYPED_REPORT",status:"DOWNLOADED"});
+    this.currentDocuments = documents;this.onDocuments(documents);
+    if (selected.length > 6) return this.review(order.orderNumber, "More than 6 corresponding PDFs were found; select the required documents manually.", {...step1,documents});
     const form = new FormData();
     form.append("orderData", JSON.stringify({ ...order, analysisId: step1.analysisId, taText }));
     let total = 0;
@@ -151,17 +156,21 @@ export class QueueRunner {
         if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new Error("The file is not a PDF.");
         if (bytes.length > 20 * 1024 * 1024 || total + bytes.length > 40 * 1024 * 1024) throw new Error("PDF upload size limit exceeded.");
         total += bytes.length;
+        documents[index].status="DOWNLOADED";this.onDocuments(documents);
         this.log('pdf.download.complete',{fileType:file.type,bytes:bytes.length});
         form.append(`file${index}`, new Blob([bytes], { type: "application/pdf" }), file.name);
         form.append(`fileType_file${index}`, file.type);
-      } catch (error) { this.log('pdf.download.failed',{fileType:file.type,errorCode:error.code,httpStatus:error.httpStatus}); warnings.push(`${file.name}: ${error.message}`); }
+      } catch (error) { documents[index].status="FAILED";this.onDocuments(documents);this.log('pdf.download.failed',{fileType:file.type,errorCode:error.code,httpStatus:error.httpStatus}); warnings.push(`${file.name}: ${error.message}`); }
     }
     await this.assertUnchanged(tabId, snapshot);
     this.onProgress(`Analyzing evidence for ${order.orderNumber}…`);
     this.log('evidence.submit',{bytes:total,characters:taText.length,missing:required.filter(type=>type==='TYPED_REPORT'?!taText:![...form.entries()].some(([key,value])=>key.startsWith('fileType_')&&value===type))});
     // Empty evidence is deliberately submitted so missing files yield REVIEW_REQUIRED.
+    for(const doc of documents)if(doc.status==="DOWNLOADED")doc.status="ANALYZING";
+    this.onDocuments(documents);
     const result = await this.api("analyze-documents", form);
     if (result.orderNumber !== order.orderNumber) throw new Error("Evidence result belongs to another order.");
+    result.documents = documents.map(doc => (result.documents || []).find(item => item.name === doc.name && item.type === doc.type) || {...doc,status:doc.status === "FAILED" ? "FAILED" : "UNVERIFIED"});
     await this.assertUnchanged(tabId, snapshot);
     if (warnings.length) return this.review(order.orderNumber, warnings.join("\n"), result);
     return result;
@@ -180,8 +189,9 @@ export class QueueRunner {
         this.onOrderState(task, "PROCESSING");
         this.log('order.start',{orderNumber:task.orderNumber});
         let result;
+        this.currentAnalysis = {}; this.currentDocuments = [];
         try { result = await this.processOrder(orderTab.id, task); }
-        catch (error) { this.log('order.failed',{orderNumber:task.orderNumber}); result = this.review(task.orderNumber || task.name, error.message); }
+        catch (error) { this.log('order.failed',{orderNumber:task.orderNumber}); result = this.review(task.orderNumber || task.name, error.message, {...this.currentAnalysis, documents:this.currentDocuments.map(d=>({...d,status:d.status === "ANALYZING" ? "UNVERIFIED" : d.status}))}); }
         results.push(result);
         this.onOrderState(task, result.overallDecision || result.status);
         this.log('order.complete',{orderNumber:task.orderNumber,status:result.overallDecision || result.status});

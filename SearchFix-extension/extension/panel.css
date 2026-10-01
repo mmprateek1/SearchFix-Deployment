@@ -9,3 +9,14 @@
 @media(max-width:380px){.orderCard summary{align-items:flex-start;flex-direction:column;gap:8px}.batchActions{flex-wrap:wrap}.batchActions button{font-size:12px}}
 header{gap:12px;align-items:center}#toggleApiKey{margin-left:auto;font-size:12px;max-width:155px}#apiKeySection{margin-top:0}#apiKeySection .actions{margin-top:14px}#batchResults pre{margin:12px 0}
 #activityLog{max-height:300px;overflow:auto;font:11px/1.6 Consolas,monospace;margin-top:12px;padding:10px;background:#e7eef3;border-radius:8px}
+
+.orderHeader{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:7px;padding:12px 10px}
+#tasks .orderHeader button{display:inline-block;width:auto;margin:0;text-align:left;font-size:12px;padding:8px}
+#tasks .orderHeader .orderLink{border:0;background:transparent;color:#006f70;font-weight:650;padding:4px 0;overflow-wrap:anywhere;text-decoration:underline;text-underline-offset:3px}
+.orderHeader .orderStatus{padding:4px 7px;font-size:10px}.orderHeader .startAnalysis{white-space:nowrap}
+.orderContent h3{font-size:12px;margin:12px 0 5px}.orderContent p{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}.orderContent ul{padding-left:18px;overflow-wrap:anywhere}
+.orderProgress{color:#315f83}.chosenComment{margin:0 0 12px;padding:10px;background:#f0f6f8;border:0;border-radius:7px}.chosenComment summary{display:block;padding:0}
+.issueFinding{border-top:1px solid #dce5e9;margin-top:12px}.evidenceFinding{border-left:3px solid #b2d2db;padding-left:10px}.nextSteps{background:#eef7f2;border-radius:7px;padding:2px 10px 10px;margin-top:12px}.resultReason{padding-bottom:8px}
+@media(max-width:380px){main{padding:15px 9px}section{padding:12px 9px}.orderHeader{gap:4px;padding:10px 7px}#tasks .orderHeader button{font-size:11px;padding:7px 5px}.orderHeader .orderStatus{font-size:9px;padding:4px 5px}}
+
+.chosenComment summary::after{content:" ▾";float:right;color:#087c76}.chosenComment[open] summary::after{content:" ▴"}

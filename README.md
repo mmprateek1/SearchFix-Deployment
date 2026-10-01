@@ -1,52 +1,37 @@
-# SearchFix 1.5.0 — local development
+# SearchFix 1.6.0
 
-Start with [LOCAL_TESTING.md](LOCAL_TESTING.md) for the demo, local service, Chrome installation and testing steps. Read [REFERENCE_DATA_REVIEW.md](REFERENCE_DATA_REVIEW.md) for the detailed analysis of the supplied files.
+Read-only SearchFix review: Chrome reads the signed-in DataTrace pages and sends current comments and selected evidence to the configured analysis service. It never posts comments, edits orders, claims tasks or saves Typing Assistant changes.
 
-## Run locally
+## Use
 
-1. Install dependencies once with `npm ci`.
-2. Double-click `START-SearchFix.cmd` and keep it open.
-3. Load or reload the `extension` folder in `chrome://extensions`.
-4. Open the DataTrace task queue and click **Scan the page**.
-5. Enter and save your Gemini key using the button that appears after scanning.
-6. Click **Start the search fix**. Read each order's colored status and expandable findings.
+1. Load or reload the extension folder in chrome://extensions.
+2. Open the DataTrace task queue and click **Scan the page**.
+3. Save your key with **Add Gemini API key**. Saving makes no Gemini test request. The key lasts for this browser session; there is no environment-key fallback.
+4. Click an order number to open its Overview in the same original browser tab.
+5. Click **Start analysis** beside the chosen order. Only that order runs. Keep the panel open.
+6. Expand **Chosen comment** to see the original text, AI selection explanation and author interpretation. Read findings, document names and recommended next steps below it.
 
-The local launcher binds only to 127.0.0.1:3000. No server default key is used. Keys stay in extension session storage and are isolated per request. Both AIza and AQ. formats are supported; the key is saved locally without an API test.
+## Analysis
 
-## Reference support
+All visible Overview comments are sent to the backend. The backend sorts them chronologically and sends only the latest 15 to AI. AI chooses the relevant comment and interprets the author: ADS generally indicates internal and Outsource generally indicates client. Mixed names are decided from context by AI; code does not choose a comment using names or keywords.
 
-The backend uses only the September 29 Consolidated SearchFix Report.xlsx. All 1,809 labeled rows were examined; 1,794 records remain eligible as examples after blank comments, duplicates and conflicting labels are excluded. All 53 named normalized categories are covered by the explicit issue catalogue. See [ISSUE_DOCUMENT_MAP.md](ISSUE_DOCUMENT_MAP.md) for all 59 issue types and their required evidence.
+- AI-selected internal comment: **Ignored**, with no document analysis.
+- Client operational task (fee approval, rush ETA, abstractor follow-up, new work): **Accepted**, with a next action and no document analysis. This acknowledges a task; it does not establish a past error.
+- Alleged discrepancy: mapped evidence is requested and reviewed. **Accepted** means current evidence supports the complaint; **Disputed** means it contradicts it.
+- Unclear selection, unsupported issue, missing or inconclusive evidence, failed download or model failure: **Review required**.
 
-Comment classification and final evidence comparison receive relevant examples and category guidance. Results include the business category and historical source-row references. This is reference-guided analysis, not fine-tuning. Historical corrections, counts and matching order IDs never substitute for current documents. The same category can produce Accepted or Disputed.
+The chosen comment appears before document collection. Document progress distinguishes Found, Downloaded, Sent for analysis, Analyzed, Could not verify and Download failed. Analyzed means the model returned evidence attributed to that supplied source, not that every assertion in the file was independently verified.
 
-The original files remain unchanged. The prepared library is in `data/reference` and must accompany the backend. It is not embedded in the extension. The internal history file is excluded from Git by default but included in the local setup package.
+No historical workbook, PDF or JSON reference library is used or bundled. Prompts contain general document-role guidance learned from the supplied examples, without sample names, order facts or outcomes. Current-order PDFs remain the evidence. Source text is untrusted data, never instructions.
 
-## Preserved behavior
+## Existing boundaries
 
-- Comments start with `gemini-3.5-flash-lite`; document analysis and evidence decisions start with `gemini-3.5-flash`. Both use the ordered fallback chains below.
-- Selected internal-user comments, including ADSSearchType and ADSSP2, are ignored before AI calls. Fee-only approval requests, abstractor status/ETA-only updates and explicit no-revision requests finish Disputed without document analysis. Mixed substantive claims still need current evidence.
-- Unsupported claims return Review required with a manual-classification explanation; there is no catch-all issue or default document mapping.
-- Required PDFs come from the verified order's Attachments view. TA comes only from Typing Assistant text.
-- Missing/unreadable evidence leads to Review required and the queue continues.
-- No DataTrace task claiming, status changes, field edits, uploads, comment posting or TA unlocking.
+PDFs are fetched from the matched order's Attachments view using the current browser session; no PDF-toolbar selector or Ctrl+S is needed. Typing Assistant is read as text. Filename prefixes and attachment row order may vary. Limits remain six PDFs, 20 MB each and 40 MB total. All comments are already visible on Overview; there is no automatic pagination. Required document mappings remain in src/config/documentMappings.js; a missing mapped type requires review even when another package might contain related material. The analyst should verify that situation manually.
 
-Numeric filename prefixes vary. Pacer, Patriot, Search Package, Index Snapshot, THR and Cost Work Sheet are recognized by type. INDEX is independently required where mapped; Search Package cannot substitute for it. Only relevant required files are downloaded.
+Results stay in panel memory. Saved backend analysis sessions expire after 30 minutes or restart; the document stage reuses the chosen comment and rejects changed order/comment context. Key saving, model fallbacks, rate limits and website access behavior are otherwise unchanged.
 
-Existing boundaries remain: loaded queue/comment rows only, no automatic pagination, six PDFs, 20 MB each and 40 MB total. Keep the panel open; closing it interrupts processing and clears results. Analysis sessions expire after 30 minutes or a service restart.
+Active comment models: gemini-3.5-flash-lite then gemini-3.1-flash-lite. Active document and decision models: gemini-3.5-flash then gemini-3.5-flash-lite then gemini-3.1-flash-lite. See RATE_LIMITS.md for budget behavior. Model availability still depends on the supplied account.
 
-## Model fallback
+## Run and verify
 
-The ordered candidates are defined in `src/config/modelFallbacks.js`:
-
-- Text/comments: `gemini-3.5-flash-lite` → `gemini-3.1-flash-lite` → `gemini-3.5-flash`.
-- Documents/evidence decisions: `gemini-3.8-flash` → `gemini-3.7-flash` → `gemini-3.6-flash` → `gemini-3.5-flash` → `gemini-3.5-flash-lite` → `gemini-3.1-flash-lite` → `gemini-2.5-flash`.
-
-Each request checks the chain in order and skips models whose reserved RPM, TPM or RPD budget cannot fit it. Only eligible models receive requests. Unavailable models (404), rate limits (429), temporary server failures (500/502/503/504) and recognized temporary network failures advance to the next candidate. The final candidate retains up to three attempts with 1-second then 2-second backoff for transient failures. Invalid requests or credentials (400/401/403) stop immediately. If all candidates fail, the existing failure/review handling applies.
-
-The supplied AI Studio limits are configured with a 20% buffer. Token preflight, saved counters and retry accounting are described in [RATE_LIMITS.md](RATE_LIMITS.md). The extension saves your key immediately and makes no verification calls, including when Start is pressed. The first Gemini calls are for the actual analysis. All attempts preserve the entered key, prompts and evidence. Legacy single-model environment settings are ignored so they cannot override this order. These are requested candidate identifiers; runtime access depends on the provider and account, and fallback does not guarantee additional quota.
-
-## Checks and API
-
-Use `TEST-SearchFix.cmd` or `node --test tests/*.test.js`. Use `PREVIEW-SearchFix.cmd` for the synthetic UI demo. Mocked checks do not establish live model accuracy.
-
-API routes remain `/api/searchfix/validate-key`, `/analyze-comments`, `/analyze-documents` and `/analyze`. All require the supplied `X-SearchFix-Gemini-Key`. `/health` reports version and service availability. The response's `references` field identifies the consulted sources, library version and matched example locations.
+The extension currently targets https://searchfix-deployment.onrender.com. Local changes do not update Render automatically. Backend and extension must both use this release to receive the new behavior. See SETUP_AND_UPDATES.md and LOCAL_TESTING.md. Automated tests and the preview use synthetic model responses and establish software behavior, not live AI accuracy.

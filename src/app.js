@@ -7,8 +7,8 @@ export function createApp() {
     const app = express();
     app.disable("x-powered-by");
     app.use('/api/searchfix', requestTrace);
-    app.get("/", (req, res) => res.json({ message: "SearchFix AI Server is running.", version: "1.5.0" }));
-    app.get("/health", (req, res) => res.json({ status: "OK", version: "1.5.0", credentialMode: "request-key-only" }));
+    app.get("/", (req, res) => res.json({ message: "SearchFix AI Server is running.", version: "1.6.0" }));
+    app.get("/health", (req, res) => res.json({ status: "OK", version: "1.6.0", credentialMode: "request-key-only" }));
     app.use("/api/searchfix", (req, res, next) => {
         const origin = req.get("Origin");
         if (origin && !/^chrome-extension:\/\/[a-p]{32}$/.test(origin)) {

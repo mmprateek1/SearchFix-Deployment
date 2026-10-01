@@ -1,6 +1,5 @@
 import { geminiService } from "./gemini.service.js";
 import { getDecisionSystemPrompt, getDecisionUserPrompt } from "../prompts/decision.prompt.js";
-import { referenceContext, referencePrompt } from "./reference.service.js";
 import { trace } from './trace.service.js';
 
 export class DecisionEngine {
@@ -16,16 +15,15 @@ export class DecisionEngine {
         if (!Array.isArray(evidence) || evidence.length === 0) {
             return {
                 decision: "REVIEW_REQUIRED",
-                reason: `Required supporting document(s) [${issue.requiredDocuments.join(", ")}] were not provided for analysis.`
+                reason: `Required supporting document(s) [${issue.requiredDocuments.join(", ")}] were not provided for analysis.`, nextSteps:["Obtain readable supporting evidence and review the claim again."]
             };
         }
         if (evidence.some(item => item.field === "documentAnalysisStatus" && item.value === "Processing Error")) {
-            return { decision: "REVIEW_REQUIRED", reason: "The supplied evidence could not be processed. Retry or review the source documents manually; no claim has been verified." };
+            return { decision: "REVIEW_REQUIRED", reason: "The supplied evidence could not be processed. Retry or review the source documents manually; no claim has been verified.", nextSteps:["Retry document analysis or review the source documents manually."] };
         }
 
         const systemPrompt = getDecisionSystemPrompt();
-        const userPrompt = getDecisionUserPrompt(issue.issueType, issue.claim, issue.requiredDocuments, evidence)
-            + referencePrompt(issue.reference || referenceContext(issue.claim, issue.category));
+        const userPrompt = getDecisionUserPrompt(issue.issueType, issue.claim, issue.requiredDocuments, evidence);
 
         try {
             const rawResponse = await geminiService.generateJSON(systemPrompt, userPrompt, "documents");
@@ -39,13 +37,14 @@ export class DecisionEngine {
 
             return {
                 decision,
-                reason
+                reason,
+                nextSteps: Array.isArray(parsed.nextSteps) && parsed.nextSteps.some(s=>typeof s === "string" && s.trim()) ? parsed.nextSteps.filter(s=>typeof s === "string" && s.trim()) : ["Review the cited evidence with the search team before taking action."]
             };
         } catch (error) {
             trace('decision.failed',{issueType:issue.issueType,code:error.code || 'DECISION_ERROR'});
             return {
                 decision: "REVIEW_REQUIRED",
-                reason: "Error occurred during claim vs evidence decision evaluation."
+                reason: "Error occurred during claim vs evidence decision evaluation.", nextSteps:["Retry the evidence comparison before resolving this claim."]
             };
         }
     }

@@ -1,5 +1,4 @@
 import { getRequiredDocumentTypes } from "../config/documentMappings.js";
-import { CATEGORY_DOCUMENTS } from "../config/referenceCategories.js";
 import { ISSUE_TYPES } from '../config/issueTypes.js';
 
 export class DocumentSelectionService {
@@ -13,7 +12,7 @@ export class DocumentSelectionService {
         if (!Array.isArray(issues)) return [];
 
         return issues.map(issue => {
-            const requiredDocuments = issue.decision || !ISSUE_TYPES.includes(issue.issueType) ? [] : [...new Set([...getRequiredDocumentTypes(issue.issueType), ...(CATEGORY_DOCUMENTS[issue.category] || [])])];
+            const requiredDocuments = issue.decision || !ISSUE_TYPES.includes(issue.issueType) ? [] : [...new Set(getRequiredDocumentTypes(issue.issueType))];
             return {
                 ...issue,
                 requiredDocuments

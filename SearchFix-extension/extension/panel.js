@@ -11,6 +11,7 @@ let apiKey = (await chrome.storage.session.get("geminiApiKey")).geminiApiKey || 
 let busy = false;
 let discoveredTasks = [];
 let queueRunner = null;
+let sourceTabId = null;
 const taskCards = new Map();
 const activity = createActivityLog(text => { $("activityLog").textContent = text; });
 const log = activity.log;
@@ -33,7 +34,7 @@ async function run(work) {
   busy = true;
   document.querySelectorAll("button").forEach(button => button.disabled = true);
   try { await work(); } catch (error) { status(error.message || "Unable to complete this step.", true); }
-  finally { busy = false; document.querySelectorAll("button").forEach(button => button.disabled = false); $("stopBatch").disabled = true; }
+  finally { busy = false; document.querySelectorAll("button").forEach(button => button.disabled = false); }
 }
 function renderKeyState() {
   $("toggleApiKey").textContent = apiKey ? "Change Gemini API key" : "Add Gemini API key";
@@ -56,7 +57,7 @@ $("apiKeyForm").addEventListener("submit", event => {
       renderKeyState();
       $("apiKeySection").hidden = true;
       $("toggleApiKey").setAttribute("aria-expanded", "false");
-      status("Your Gemini key is saved. Choose Start the search fix to begin analysis.");
+      status("Your Gemini key is saved. Choose Start analysis beside an order to begin.");
     } catch (error) {
       $("apiKeyStatus").textContent = error.message;
       throw error;
@@ -84,33 +85,84 @@ function setTaskState(task, state) {
   row.badge.className = `orderStatus status-${labels[state] ? state.toLowerCase() : 'review_required'}`;
   row.card.dataset.status = state;
 }
-function renderTasks() {
-  $("tasks").replaceChildren(); taskCards.clear();
-  for (const task of discoveredTasks) {
-    const card = document.createElement("details"); card.className = "orderCard";
-    const summary = document.createElement("summary");
-    const label = document.createElement("span"); label.className = "orderLabel"; label.textContent = task.orderNumber || task.name;
-    const badge = document.createElement("span"); badge.setAttribute("role", "status");
-    summary.append(label, badge);
-    const content = document.createElement("div"); content.className = "orderContent";
-    content.textContent = "Waiting to start. No analysis has been performed.";
-    card.append(summary, content); $("tasks").append(card);
-    taskCards.set(task.url, {card, badge, content}); setTaskState(task, "PENDING");
+function section(title, content, className='') {
+  const node=document.createElement('div');node.className=className;
+  const heading=document.createElement('h3');heading.textContent=title;node.append(heading);
+  const text=document.createElement('p');text.textContent=content;node.append(text);return node;
+}
+function showAnalysis(row,result) {
+  row.findings.replaceChildren();
+  const analysis=result.commentAnalysis,chosen=analysis?.selectedComment;
+  const details=document.createElement('details');details.className='chosenComment';
+  const summary=document.createElement('summary');summary.textContent='Chosen comment';details.append(summary);
+  if(chosen){
+    details.append(section(`${chosen.author || 'Unknown'} · ${chosen.date || ''} ${chosen.time || ''}`,chosen.text));
+    details.append(section('Why AI chose it',analysis.selectionReason || 'Selection explanation unavailable.'));
+    details.append(section('Author interpretation',analysis.roleReason || chosen.role));
+  } else details.append(section('Selection needs review',result.reason || 'AI has not selected a comment.'));
+  if(analysis?.totalComments!=null){const count=document.createElement('p');count.className='hint';count.textContent=`${analysis.totalComments} comments received · newest ${analysis.consideredComments} considered by AI`;details.append(count);}
+  row.findings.append(details);
+  if(result.reason)row.findings.append(section(result.decisionBasis==='CLIENT_TASK'?'Client task accepted':'Result explanation',result.reason,'resultReason'));
+  if(result.decisionBasis==='CLIENT_TASK'){const note=document.createElement('p');note.className='hint';note.textContent='Task acknowledged for human action. No document error has been established.';row.findings.append(note);}
+  for(const issue of result.issues || []){
+    const block=section('Client claim',issue.clientClaim || issue.claim,'issueFinding');
+    if(issue.decision)block.append(section(issue.decision.replaceAll('_',' '),issue.reason || ''));
+    if(issue.requiredFiles?.length)block.append(section('Evidence requested',issue.requiredFiles.map(f=>f.fileType.replaceAll('_',' ')).join(', ')));
+    for(const evidence of issue.evidence || [])block.append(section(`${evidence.document}${evidence.page?' · page '+evidence.page:''}`,evidence.finding+(evidence.quotedText?'\nQuote: '+evidence.quotedText:''),'evidenceFinding'));
+    if(issue.nextSteps?.length)block.append(section('Recommended next steps',issue.nextSteps.map((step,i)=>`${i+1}. ${step}`).join('\n'),'nextSteps'));
+    row.findings.append(block);
   }
-  $("tasksSection").hidden = !discoveredTasks.length;
-  $("batchActions").hidden = !discoveredTasks.length;
-  $("orderCount").textContent = `${discoveredTasks.length} found`;
+  if(result.nextSteps?.length)row.findings.append(section('Next steps',result.nextSteps.map((step,i)=>`${i+1}. ${step}`).join('\n'),'nextSteps'));
+  if(result.documents)showDocuments(row,result.documents);
+}
+function showDocuments(row,documents) {
+  row.documents.replaceChildren();
+  if(!documents.length)return;
+  const heading=document.createElement('h3');heading.textContent='Documents';row.documents.append(heading);
+  const list=document.createElement('ul');
+  const labels={FOUND:'Found',DOWNLOADED:'Downloaded',ANALYZING:'Sent for analysis',ANALYZED:'Analyzed',UNVERIFIED:'Could not verify',FAILED:'Download failed'};
+  for(const doc of documents){const item=document.createElement('li');item.textContent=`${doc.name} — ${labels[doc.status] || doc.status}`;list.append(item);}
+  row.documents.append(list);
+}
+async function openOrder(task) {
+  const target=new URL(task.url);
+  if(target.origin!=='https://tv.datatracetitle.com'||!/\/OrderOverview\.aspx$/i.test(target.pathname)||target.username||target.password)throw Error('Only the verified Order Overview link can be opened.');
+  let tab=sourceTabId?await chrome.tabs.get(sourceTabId).catch(()=>null):null;
+  if(!tab)tab=await currentTab();
+  await chrome.tabs.update(tab.id,{url:target.href,active:true});sourceTabId=tab.id;
+  status(`Opened ${task.orderNumber}. Choose Start analysis when ready.`);
+}
+function renderTasks() {
+  $("tasks").replaceChildren();taskCards.clear();
+  for(const task of discoveredTasks){
+    const card=document.createElement('article');card.className='orderCard';
+    const header=document.createElement('div');header.className='orderHeader';
+    const label=document.createElement('button');label.type='button';label.className='orderLink';label.textContent=task.orderNumber || task.name;label.title='Open Order Overview';
+    label.addEventListener('click',()=>run(()=>openOrder(task)));
+    const badge=document.createElement('span');badge.setAttribute('role','status');
+    const start=document.createElement('button');start.type='button';start.className='primary startAnalysis';start.textContent='Start analysis';start.setAttribute('aria-label',`Start analysis for ${task.orderNumber}`);
+    start.addEventListener('click',()=>run(()=>processTask(task)));
+    header.append(label,badge,start);
+    const content=document.createElement('div');content.className='orderContent';content.hidden=true;
+    const progress=document.createElement('p');progress.className='orderProgress';progress.setAttribute('aria-live','polite');
+    const findings=document.createElement('div'),documents=document.createElement('div'),actions=document.createElement('div');documents.className='documentProgress';
+    content.append(progress,findings,documents,actions);card.append(header,content);$("tasks").append(card);
+    taskCards.set(task.url,{card,badge,content,progress,findings,documents,actions,start});setTaskState(task,'PENDING');
+  }
+  $("tasksSection").hidden=!discoveredTasks.length;
+  $("orderCount").textContent=`${discoveredTasks.length} found`;
 }
 async function scan() {
   $("activitySection").hidden = false;
   log('scan.start');
   const tab = await currentTab();
+  sourceTabId = tab.id;
   const data = await inject(tab.id, readOrderPage, [settings]);
   discoveredTasks = [...new Map(data.tasks.map(task=>[task.url,task])).values()];
   renderTasks();
   log('scan.complete', {count:discoveredTasks.length});
   $("toggleApiKey").hidden = false;
-  status(discoveredTasks.length ? `Found ${discoveredTasks.length} SearchFix orders. Choose Start the search fix when ready.` : "No SearchFix orders found on this page. Open All Active and Available Tasks, load the desired rows, and scan again.");
+  status(discoveredTasks.length ? `Found ${discoveredTasks.length} SearchFix orders. Choose Start analysis beside the order you want to review.` : "No SearchFix orders found on this page. Open All Active and Available Tasks, load the desired rows, and scan again.");
   return data;
 }
 async function navigate(url) {
@@ -134,41 +186,24 @@ $("scan").addEventListener("click", () => run(async () => {
   if (data.tasks.length) return;
   if (data.queueLinks.length) await navigate(data.queueLinks[0].url);
 }));
-async function processTasks(tasks) {
-  if (!tasks.length) throw new Error("Scan the page to find SearchFix orders first.");
-  if (!apiKey) {
-    $("apiKeySection").hidden = false; $("toggleApiKey").setAttribute("aria-expanded", "true"); $("apiKey").focus();
-    throw new Error("Add your Gemini API key, then choose Start the search fix.");
-  }
-  renderTasks();
-  queueRunner = new QueueRunner({ tabs: chrome.tabs, inject, api, settings, log,
-    onProgress: message => status(message),
-    onOrderState: setTaskState,
-    onResult: async (payload, count, total, task) => {
-      const row = taskCards.get(task.url);
-      const notes = document.createElement("pre"); notes.textContent = buildAssistantText(payload);
-      const copy = document.createElement("button"); copy.textContent = "Copy notes"; copy.disabled = busy;
-      copy.addEventListener("click", () => run(async () => {
-        await navigator.clipboard.writeText(notes.textContent);
-        status("Review notes copied. Nothing was entered on DataTrace.");
-      }));
-      row.content.replaceChildren(notes, copy);
-      status(`Processed ${count} of ${total} orders.`);
+async function processTask(task) {
+  if(!apiKey){$("apiKeySection").hidden=false;$("toggleApiKey").setAttribute('aria-expanded','true');$("apiKey").focus();throw Error('Add your Gemini API key, then choose Start analysis.');}
+  const row=taskCards.get(task.url);row.content.hidden=false;row.findings.replaceChildren();row.documents.replaceChildren();row.actions.replaceChildren();
+  queueRunner=new QueueRunner({tabs:chrome.tabs,inject,api,settings,log,
+    onProgress:message=>{status(message);row.progress.textContent=message;},
+    onOrderState:setTaskState,
+    onAnalysis:result=>showAnalysis(row,result),
+    onDocuments:documents=>showDocuments(row,documents),
+    onResult:async result=>{
+      showAnalysis(row,result);row.progress.textContent=`Analysis finished: ${(result.overallDecision || result.status).replaceAll('_',' ')}`;
+      const copy=document.createElement('button');copy.textContent='Copy findings';copy.disabled=busy;
+      copy.addEventListener('click',()=>run(async()=>{await navigator.clipboard.writeText(buildAssistantText(result));status('Findings copied.');}));row.actions.append(copy);
       await forwardActivity();
     }
   });
-  $("stopBatch").hidden = false;
-  $("stopBatch").disabled = false;
-  try {
-    const results = await queueRunner.run(tasks);
-    status(`${queueRunner.stopped ? "Stopped" : "Finished"}: ${results.length} of ${tasks.length} SearchFix orders processed. Open an order to read its findings.`);
-  } finally { queueRunner = null; $("stopBatch").disabled = true; $("stopBatch").hidden = true; await forwardActivity(); }
+  try{await queueRunner.run([task]);status(`Finished reviewing ${task.orderNumber}.`);}
+  finally{queueRunner=null;await forwardActivity();}
 }
-$("processAll").addEventListener("click", () => run(() => processTasks([...discoveredTasks])));
-$("stopBatch").addEventListener("click", () => {
-  queueRunner?.stop(); $("stopBatch").disabled = true;
-  status("Stopping after the current order finishes.");
-});
 // Opening the extension does not read or navigate the website. Scan is explicit.
 $("copyActivity").addEventListener("click", () => run(async () => {
   await navigator.clipboard.writeText(activity.text());

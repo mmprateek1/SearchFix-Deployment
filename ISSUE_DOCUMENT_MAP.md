@@ -1,69 +1,10 @@
 # Issue and document catalogue
 
-59 explicit issue types cover the workbook's named categories and additional concrete existing claims. Category labels guide classification; the actual claim determines the issue. Broad Abstractor comments can involve any substantive issue, not only attorney opinions.
+Existing mappings are preserved. AI chooses a concrete discrepancy type; code maps it to the required evidence. Unknown claims require manual classification. Operational tasks use the separate Accepted route without document requests.
 
-TA/TYPED_REPORT means text read from the website Typing Assistant. Other types refer to PDF attachments matched by filename regardless of the order-number prefix or row position. A missing required type results in Review required; a historical example does not substitute for it. Non-PDF source attachments are not silently treated as PDFs. These are implementation mappings for team review, not mappings authored by the spreadsheet itself.
+TA/TYPED_REPORT is website Typing Assistant text. Other sources are matched PDFs; missing required types produce Review required. A bundle may contain related material, but this release retains the existing required-type checks.
 
-| Workbook category | Candidate issue types |
-| --- | --- |
-| Name Search | NAME_SEARCH_MISSING |
-| Typing | TYPING_ERROR |
-| Document | MISSING_DOCUMENT |
-| Document Request | DOCUMENT_COPY_REQUEST |
-| Wrong Document | WRONG_DOCUMENT |
-| Attorney Opinion | ATTORNEY_OPINION_DISCREPANCY |
-| Pacer Search | PACER_SEARCH_DISCREPANCY |
-| Pacer and Patriot | PACER_SEARCH_DISCREPANCY, PATRIOT_SEARCH_DISCREPANCY |
-| Patriot | PATRIOT_SEARCH_DISCREPANCY |
-| Vesting Name | VESTING_DISCREPANCY |
-| Comment | REPORT_COMMENT_DISCREPANCY |
-| Vendor Management Requirement | VENDOR_REQUIREMENT_DISCREPANCY |
-| Effective Date | EFFECTIVE_DATE_DISCREPANCY |
-| Tax / Assessor | TAX_DISCREPANCY |
-| Plat Map | PLAT_MAP_DISCREPANCY |
-| GIS Map | GIS_MAP_DISCREPANCY |
-| Chain of Title | CHAIN_BREAK |
-| 24 Month Chain | CHAIN_24_MONTH_DISCREPANCY |
-| Cost Work Sheet | COST_WORKSHEET_DISCREPANCY |
-| HOA | HOA_DISCREPANCY |
-| PUD Comment | PUD_DISCREPANCY |
-| Parcel ID | PARCEL_MISMATCH |
-| Legal Description | LEGAL_DESCRIPTION_MISMATCH |
-| Property Report | PROPERTY_REPORT_DISCREPANCY |
-| Search Package | SEARCH_PACKAGE_DISCREPANCY |
-| Address | ADDRESS_DISCREPANCY |
-| Property Identification | PROPERTY_IDENTIFICATION |
-| Mailing List | MAILING_LIST_DISCREPANCY |
-| Abstractor | ATTORNEY_OPINION_DISCREPANCY, ABSTRACTOR_STATUS |
-| Update Report | UPDATE_REPORT_DISCREPANCY |
-| Lien Registry | LIEN_REGISTRY_DISCREPANCY |
-| Court Search | COURT_DISCREPANCY |
-| County Change | COUNTY_DISCREPANCY |
-| Wrong Order Number | ORDER_NUMBER_DISCREPANCY |
-| Unofficial Copies | UNOFFICIAL_COPY_ISSUE |
-| Index | INDEX_SEARCH_DISCREPANCY |
-| Water Mark Copies | WATERMARK_COPY_ISSUE |
-| Recording Date | RECORDING_DATE_DISCREPANCY |
-| Judgment | JUDGMENT_SEARCH_DISCREPANCY |
-| Lender Name | LENDER_NAME_DISCREPANCY |
-| Assignment Chain | ASSIGNMENT_CHAIN_DISCREPANCY |
-| Mortgage | MORTGAGE_DISCREPANCY |
-| Survey | SURVEY_DISCREPANCY |
-| Torrens | TORRENS_CERTIFICATE_DISCREPANCY |
-| Cover Sheet | COVER_SHEET_DISCREPANCY |
-| Marital Status | MARITAL_STATUS_DISCREPANCY |
-| Tax Warrant | TAX_WARRANT_DISCREPANCY |
-| Sunbiz | SUNBIZ_SEARCH_DISCREPANCY |
-| No Revision Request | NO_REVISION_REQUEST |
-| Checklist | CHECKLIST_DISCREPANCY |
-| THR Report | THR_DISCREPANCY |
-| Effective Date / Typing | EFFECTIVE_DATE_DISCREPANCY, TYPING_ERROR |
-| Abstractor / Typing | ATTORNEY_OPINION_DISCREPANCY, TYPING_ERROR |
-| Fee Approval | FEE_APPROVAL_REQUEST |
-
-## Evidence requirements
-
-| Issue type | Required evidence |
+| Issue type | Required document types |
 | --- | --- |
 | MISSING_DEED | DEED, SEARCH_PACKAGE, TYPED_REPORT |
 | CHAIN_BREAK | SEARCH_PACKAGE, DEED, TYPED_REPORT |
@@ -121,8 +62,6 @@ TA/TYPED_REPORT means text read from the website Typing Assistant. Other types r
 | PACER_SEARCH_DISCREPANCY | PACER, TYPED_REPORT |
 | PATRIOT_SEARCH_DISCREPANCY | PATRIOT, TYPED_REPORT |
 | CHAIN_24_MONTH_DISCREPANCY | DEED, SEARCH_PACKAGE, TYPED_REPORT |
-| FEE_APPROVAL_REQUEST | No documents; guarded comment-only decision |
-| ABSTRACTOR_STATUS | No documents; guarded comment-only decision |
-| NO_REVISION_REQUEST | No documents; guarded comment-only decision |
-
-Unknown issue types have no default document mapping and return Review required. Category-specific supporting evidence can supplement these requirements (for example assessor data for Tax / Assessor).
+| FEE_APPROVAL_REQUEST | None (operational) |
+| ABSTRACTOR_STATUS | None (operational) |
+| NO_REVISION_REQUEST | None (operational) |

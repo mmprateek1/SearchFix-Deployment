@@ -77,15 +77,15 @@ test("queue ignores, reviews failed orders, and continues using only matching at
   assert.deepEqual([...f.tabsMap.keys()], [99]);
 });
 
-test('comment-only Disputed and unmatched Review Required never open supporting views or call the document endpoint', async()=>{
+test('comment-only Accepted and unmatched Review Required never open supporting views or call the document endpoint', async()=>{
   const f=fixture();
   f.runner.api=async(endpoint,body)=>{
     assert.equal(endpoint,'analyze-comments');
-    const status=body.orderNumber==='FEE'?'DISPUTED':'REVIEW_REQUIRED';
+    const status=body.orderNumber==='FEE'?'ACCEPTED':'REVIEW_REQUIRED';
     return {orderNumber:body.orderNumber,status,overallDecision:status,issues:[]};
   };
   const results=await f.runner.run([task('FEE'),task('UNMATCHED')]);
-  assert.deepEqual(results.map(r=>r.status),['DISPUTED','REVIEW_REQUIRED']);
+  assert.deepEqual(results.map(r=>r.status),['ACCEPTED','REVIEW_REQUIRED']);
   assert.equal(f.events.filter(([name])=>['openSupportingLink','readSupportingView','readAttachment'].includes(name)).length,0);
 });
 
@@ -181,4 +181,21 @@ test("wrong-order navigation and changed comments fail closed without evidence s
   const changed = await g.runner.run([task("RIGHT")]);
   assert.equal(changed[0].status, "REVIEW_REQUIRED");
   assert.ok(!g.events.some(([name]) => name === "analyze-documents"));
+});
+
+test('chosen comment appears before downloads; failed document requests preserve it and truthful file states',async()=>{
+ const f=fixture(),events=[];
+ const originalApi=f.runner.api;
+ const commentAnalysis={selectedComment:{author:'Synthetic_Outsource',text:'Original synthetic request',role:'CLIENT'},contextCommentsUsed:[],selectionReason:'Latest meaningful request',roleReason:'Client'};
+ f.runner.api=async(endpoint,body)=>{
+  if(endpoint==='analyze-documents'){events.push('document-request');throw Error('Synthetic outage');}
+  return {...await originalApi(endpoint,body),commentAnalysis};
+ };
+ f.runner.onAnalysis=result=>{assert.deepEqual(result.commentAnalysis,commentAnalysis);events.push('chosen');};
+ f.runner.onDocuments=docs=>events.push(docs.map(d=>d.status).join(','));
+ const [result]=await f.runner.run([task('ONLY-ONE')]);
+ assert.equal(result.status,'REVIEW_REQUIRED');assert.deepEqual(result.commentAnalysis,commentAnalysis);
+ assert.equal(events[0],'chosen');assert.ok(events.includes('FOUND,DOWNLOADED'));assert.ok(events.includes('ANALYZING,ANALYZING'));
+ assert.equal(events.at(-1),'document-request');assert.ok(result.documents.every(d=>d.status==='UNVERIFIED'));
+ assert.equal(f.results.length,1);assert.deepEqual([...f.tabsMap.keys()],[99]);
 });

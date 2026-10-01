@@ -1,3 +1,4 @@
+import {BACKEND_ORIGIN} from '../extension/deployment.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createApp} from '../src/app.js';
@@ -11,8 +12,8 @@ test('extension activity reaches the authenticated backend with content fields s
   const root=`http://127.0.0.1:${server.address().port}`;
   const key='TEST_DIAGNOSTIC_KEY_12345678901234567890';
   try {
-    const api=createApiClient({backend:()=> 'http://localhost:3000',getKey:()=>key,
-      fetcher:(url,options)=>fetch(url.replace('http://localhost:3000',root),options),timeoutMs:5000});
+    const api=createApiClient({backend:()=> BACKEND_ORIGIN,getKey:()=>key,
+      fetcher:(url,options)=>fetch(url.replace(BACKEND_ORIGIN,root),options),timeoutMs:5000});
     const activity=createActivityLog();
     activity.log('attachments.selected',{count:3,selected:['SEARCH_PACKAGE'],apiKey:key,taText:'PRIVATE TA'});
     const records=activity.since(0);

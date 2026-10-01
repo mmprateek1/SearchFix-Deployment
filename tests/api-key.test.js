@@ -1,3 +1,5 @@
+import {BACKEND_ORIGIN} from '../extension/deployment.js';
+import {selection} from './helpers/selection.js';
 import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
@@ -35,7 +37,7 @@ test("both comment and multipart document requests preserve long auth keys only 
   const seen = [];
   const authKey = `AQ.TEST_ONLY.${"aB0_-".repeat(70)}`;
   let key = authKey;
-  const api = createApiClient({ backend: () => "http://localhost:3000", getKey: () => key,
+  const api = createApiClient({ backend: () => BACKEND_ORIGIN, getKey: () => key,
     fetcher: async (url, options) => {
       seen.push({ url, options });
       return new Response(JSON.stringify({ orderNumber: "TEST" }), { headers: { "X-SearchFix-Key-Source": "request" } });
@@ -44,7 +46,7 @@ test("both comment and multipart document requests preserve long auth keys only 
   await api("analyze-comments", { orderNumber: "TEST" }, true);
   await api("analyze-documents", form);
   for (const { url, options } of seen) {
-    assert.equal(new URL(url).origin, "http://localhost:3000");
+    assert.equal(new URL(url).origin, BACKEND_ORIGIN);
     assert.equal(options.headers["X-SearchFix-Gemini-Key"], authKey);
     assert.equal(url.includes(authKey), false);
     assert.equal(String(options.body).includes(authKey), false);
@@ -103,7 +105,7 @@ test("real HTTP routes accept a per-request key for JSON and multipart and rejec
   const traces = [], documentTraces = [];
   geminiService.generateJSON = async () => {
     assert.ok(currentGeminiClient()); clients.push(currentGeminiClient()); traces.push(currentTraceId());
-    return { issues: [{ issueType: "MISSING_DEED", claim: "Missing deed" }] };
+    return selection([{ issueType: "MISSING_DEED", claim: "Missing deed" }]);
   };
   geminiService.generateContentWithFiles = async () => {
     assert.ok(currentGeminiClient()); documentClients.push(currentGeminiClient()); documentTraces.push(currentTraceId());
@@ -112,7 +114,7 @@ test("real HTTP routes accept a per-request key for JSON and multipart and rejec
   const app = express(); app.use(requestTrace); app.use(express.json()); app.use("/api/searchfix", routes);
   const server = app.listen(0, "127.0.0.1"); await new Promise(resolve => server.once("listening", resolve));
   const root = `http://127.0.0.1:${server.address().port}/api/searchfix`;
-  const order = { orderNumber: "KEY-TEST", comments: [{ author: "Client", text: "Missing deed" }] };
+  const order = { orderNumber: "KEY-TEST", comments: [{ author: "Client", date:"2026-09-25", time:"12:00", text: "Missing deed" }] };
   try {
     const authKey = `AQ.TEST_ONLY.${"aB0_-".repeat(70)}`;
     const first = await fetch(`${root}/analyze-comments`, { method: "POST", headers: { "Content-Type": "application/json", "X-SearchFix-Gemini-Key": authKey }, body: JSON.stringify(order) });
@@ -160,7 +162,7 @@ test("key verification checks both models with the supplied client and stops on 
 
 test("old backends and unconfirmed key sources cannot silently produce successful client results", async () => {
   for (const [status, body, expected] of [[404, {}, /outdated/], [200, { valid: true }, /did not confirm/]]) {
-    const api = createApiClient({ backend: () => "http://localhost:3000", getKey: () => keyA,
+    const api = createApiClient({ backend: () => BACKEND_ORIGIN, getKey: () => keyA,
       fetcher: async () => new Response(JSON.stringify(body), { status }) });
     await assert.rejects(api("validate-key", {}, true), expected);
   }

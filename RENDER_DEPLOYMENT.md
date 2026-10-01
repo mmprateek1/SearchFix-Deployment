@@ -1,4 +1,4 @@
-# Deploy SearchFix 1.3.1 on Render
+# Deploy SearchFix 1.6.0 on Render
 
 The Node.js backend runs on Render. The Chrome extension stays on each user's PC and reads DataTrace through that user's signed-in browser. The extension sends relevant comments, PDFs, TA text, and the entered API key to your Render service over HTTPS; that service calls Gemini. It does not write anything back to DataTrace. This guide prepares a deployment; no service has been published for you.
 
@@ -33,11 +33,11 @@ Add these environment variables:
 | --- | --- |
 | `NODE_VERSION` | `22` |
 | `NODE_ENV` | `production` |
-| `GEMINI_COMMENT_MODEL` | `gemini-3.5-flash-lite` |
-| `GEMINI_DOCUMENT_MODEL` | `gemini-3.5-flash` |
+| `GEMINI_COMMENT_MODEL` (legacy; active chain is in source) | `gemini-3.5-flash-lite` |
+| `GEMINI_DOCUMENT_MODEL` (legacy; active chain is in source) | `gemini-3.5-flash` |
 | `ALLOWED_GEMINI_KEY_HASHES` | Your fingerprint, or comma-separated approved fingerprints |
 
-Do not add `GEMINI_API_KEY`: this version never uses a server default key. Render supplies `PORT`; the app listens on `0.0.0.0`. The server refuses to start in production without a valid fingerprint list. The included `render.yaml` provides the same configuration if you prefer Render's Blueprint flow. [Render Node deployment](https://render.com/docs/deploy-node-express-app), [web service configuration](https://render.com/docs/web-services), [Blueprint specification](https://render.com/docs/blueprint-spec).
+Do not add `GEMINI_API_KEY`: this version never uses a server default key. Render supplies `PORT`; the app listens on `0.0.0.0`. The server accepts an approved fingerprint list or the existing * configuration; * allows any supplied key. Keep your existing access configuration unless intentionally changing it. The included `render.yaml` provides the same configuration if you prefer Render's Blueprint flow. [Render Node deployment](https://render.com/docs/deploy-node-express-app), [web service configuration](https://render.com/docs/web-services), [Blueprint specification](https://render.com/docs/blueprint-spec).
 
 Choose the service plan in Render. For regular team use, choose an always-on plan appropriate to your workload; Render describes its free instances as unsuitable for production and they can spin down when idle. [Free instance limitations](https://render.com/docs/free).
 
@@ -48,10 +48,10 @@ Click **Deploy Web Service**. Wait for deployment to finish and copy the assigne
 Open `https://YOUR-SERVICE.onrender.com/health`. Expected response:
 
 ```json
-{"status":"OK","version":"1.3.1","credentialMode":"request-key-only"}
+{"status":"OK","version":"1.6.0","credentialMode":"request-key-only"}
 ```
 
-This proves the service is running, not that your Gemini account has model access. The extension checks that separately. No database or persistent disk is needed for the current design. Analysis sessions are held in memory for up to 30 minutes, so keep one instance. A restart or deployment clears those sessions; finish active batches before deploying, or rerun affected orders afterward. [Render health checks](https://render.com/docs/health-checks).
+This proves the service is running, not that your Gemini account has model access. Saving a key makes no verification request; model access is tested during actual analysis. Quota counters use data/runtime/gemini-usage.json and need persistent storage to survive replacement of the server filesystem. Analysis sessions are held in memory for up to 30 minutes, so keep one instance. A restart or deployment clears those sessions; finish active analyses before deploying, or rerun affected orders afterward. [Render health checks](https://render.com/docs/health-checks).
 
 ## 4. Connect and package the extension
 
@@ -61,7 +61,7 @@ On your development PC, open a terminal in the project folder and run this with 
 node scripts/configure-backend.mjs https://YOUR-SERVICE.onrender.com
 ```
 
-This updates `extension/deployment.js` and the extension's permission for the exact server hostname. It also updates the unpacked release copy if present. No key is embedded. There is no connection field in the panel anymore. The supplied ZIP initially points to localhost, so this step is required for Render.
+This updates `extension/deployment.js` and the extension's permission for the exact server hostname. It also updates the unpacked release copy if present. No key is embedded. There is no connection field in the panel anymore. The current ZIP already targets https://searchfix-deployment.onrender.com; run this only when changing its destination.
 
 Create a fresh distribution ZIP in PowerShell:
 
@@ -75,8 +75,8 @@ Send this **newly configured ZIP** to the other PCs. On each PC:
 2. Open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose the extracted `extension` folder. For an existing installation, replace its files and click **Reload**.
 3. Sign in to DataTrace normally and open SearchFix.
 4. Click the green **Add Gemini API key**, paste the actual approved key, and select **Use this key**.
-5. Wait for the verification message. This makes a small request to each configured Gemini model and can consume quota. Both must succeed before the key is accepted.
-6. Find the SearchFix tasks and process the loaded orders.
+5. The key is saved immediately without verification requests.
+6. Scan the task queue and choose Start analysis beside one order.
 
 These PCs do not need Node.js, a `.env` file, or a local SearchFix server. Each user's key is retained only for the browser session; reenter it after a browser restart or extension update. A missing or rejected key blocks analysis, with no fallback to an old key or a server key.
 

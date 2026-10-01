@@ -7,7 +7,7 @@ import { readAttachment } from "../extension/page-reader.js";
 
 test("extension file types stay compatible with backend", () => assert.deepEqual(DOCUMENT_TYPES, BACKEND_TYPES));
 test("backend credentials and remote destinations cannot be configured accidentally", () => {
-  assert.equal(backendURL("http://localhost:3000/"), "http://localhost:3000");
+  assert.equal(backendURL("http://localhost:3000/", "http://localhost:3000"), "http://localhost:3000");
   for (const value of ["https://example.com", "http://localhost:3000@evil.test", "http://user:pass@localhost:3000", "http://localhost:3000/api", "http://localhost:3000?token=x"]) assert.throws(() => backendURL(value));
 });
 test("ambiguous attachment names are not silently treated as search packages", () => {

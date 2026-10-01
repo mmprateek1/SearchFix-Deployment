@@ -1,5 +1,4 @@
 import fs from "fs";
-import { commentSelectionService } from "../services/commentSelection.service.js";
 import { issueClassificationService } from "../services/issueClassification.service.js";
 import { documentSelectionService } from "../services/documentSelection.service.js";
 import { documentAnalysisService } from "../services/documentAnalysis.service.js";
@@ -9,53 +8,21 @@ import { SearchFixStep1ResultSchema, SearchFixStep2ResultSchema } from "../schem
 import { OrderInputSchema } from "../schemas/comment.schema.js";
 import { DOCUMENT_TYPES } from "../config/documentMappings.js";
 import { saveAnalysis, loadAnalysis } from "../services/analysisSession.service.js";
-import { referenceAudit, referenceContext } from "../services/reference.service.js";
 import { trace } from '../services/trace.service.js';
 
 
-// Shared routing for both endpoints: ignored orders never reach evidence analysis.
+// The model selects a comment from the recent window before any document routing.
 async function routeComments(comments) {
-    const selection = commentSelectionService.selectSearchFixComment(comments);
-    const commentAnalysis = {
-        selectedComment: selection.selectedComment,
-        contextCommentsUsed: selection.contextCommentsUsed
-    };
-    const reference = referenceContext(selection.selectedComment.text);
-    trace('comments.selected',{status:selection.ignoreReason?'IGNORED':selection.isInternalStatusExplanation?'INTERNAL':'CLIENT',count:selection.contextCommentsUsed.length});
-    trace('references.selected',{count:reference.examples.length});
-    if (selection.ignoreReason) return { commentAnalysis, reference, terminal: "IGNORED", reason: selection.ignoreReason };
-    if (selection.isInternalStatusExplanation) return {
-        commentAnalysis, reference, terminal: "IGNORED",
-        reason: "Internal-user comment; order ignored without document analysis."
-    };
-    const classification = await issueClassificationService.analyzeComment(selection.selectedComment, selection.contextCommentsUsed);
-    trace('comments.classified',{count:classification.issues.length});
-    if (classification.ignoreReason) return { commentAnalysis, reference: classification.reference || reference, terminal: "IGNORED", reason: classification.ignoreReason };
-    if (classification.reviewReason) return { commentAnalysis, reference: classification.reference || reference, terminal: "REVIEW_REQUIRED", reason: classification.reviewReason };
-    const issues = documentSelectionService.selectRequiredDocuments(classification.issues);
-    if (issues.length && issues.every(issue => issue.decision === 'DISPUTED')) return {
-        commentAnalysis, reference: classification.reference || reference, issues, terminal: 'DISPUTED',
-        reason: issues.map(issue=>issue.reason).join(' ')
-    };
-    return { commentAnalysis, reference: classification.reference || reference, issues };
+    const route = await issueClassificationService.analyzeComments(comments);
+    if (route.terminal) return route;
+    return {...route,issues:documentSelectionService.selectRequiredDocuments(route.issues)};
 }
-
 function terminalPayload(route, orderNumber, analysisId) {
-    return { analysisId, orderNumber, commentAnalysis: route.commentAnalysis, issues: (route.issues || []).map(issue=>({
-        issueType:issue.issueType, category:issue.category, claim:issue.claim, clientClaim:issue.claim,
-        decision:issue.decision, reason:issue.reason, requiredFiles:[], requiredDocuments:[], evidence:[]
-    })),
-        status: route.terminal, overallDecision: route.terminal, reason: route.reason, references: referenceAudit(route.reference) };
+    return {analysisId,orderNumber,commentAnalysis:route.commentAnalysis,issues:[],documents:[],
+        status:route.terminal,overallDecision:route.terminal,reason:route.reason,
+        nextSteps:route.nextSteps || [],decisionBasis:route.decisionBasis};
 }
 
-/**
- * STEP 1 ENDPOINT CONTROLLER:
- * Receives order comments from Chrome Extension, executes the Internal vs Client decision tree.
- * - Internal authors including ADSSearchType and ADSSP2 return IGNORED before AI.
- * - Explicit fee/status-only requests return DISPUTED before evidence collection.
- * - Unmatched claims return REVIEW_REQUIRED without arbitrary document mappings.
- * - If Client Complaint -> returns required document list with status: "AWAITING_DOCUMENTS".
- */
 export async function analyzeCommentsController(req, res) {
     try {
         const { orderNumber, comments } = req.body || {};
@@ -96,7 +63,7 @@ export async function analyzeCommentsController(req, res) {
             analysisId,
             orderNumber: cleanOrderNumber,
             commentAnalysis: route.commentAnalysis,
-            references: referenceAudit(route.reference),
+            nextSteps: route.nextSteps || [],
             issues: formattedIssues,
             status: "AWAITING_DOCUMENTS"
         };
@@ -217,8 +184,8 @@ export async function analyzeDocumentsController(req, res) {
             const missing = issue.requiredDocuments.filter(type => !uploadedFiles.some(file => file.fileType === type));
             missingRequiredEvidence ||= missing.length > 0;
             trace('evidence.analysis.complete',{issueType:issue.issueType,count:formattedEvidence.length,missing});
-            const { decision, reason } = missing.length
-                ? { decision: "REVIEW_REQUIRED", reason: `Required evidence was not supplied: ${missing.join(", ")}. Review the order's Attachments and Typing Assistant.` }
+            const { decision, reason, nextSteps = [] } = missing.length
+                ? { decision: "REVIEW_REQUIRED", reason: `Required evidence was not supplied: ${missing.join(", ")}. Review the order's Attachments and Typing Assistant.`, nextSteps: [`Obtain and verify ${missing.join(", ")} before resolving this claim.`] }
                 : await decisionEngine.evaluateIssueDecision(issue, formattedEvidence);
             trace('decision.complete',{issueType:issue.issueType,status:decision});
 
@@ -229,7 +196,8 @@ export async function analyzeDocumentsController(req, res) {
                 requiredDocuments: issue.requiredDocuments,
                 evidence: formattedEvidence,
                 decision,
-                reason
+                reason,
+                nextSteps
             });
         }
 
@@ -240,8 +208,9 @@ export async function analyzeDocumentsController(req, res) {
             analysisId: analysisId || `SF-${cleanOrderNumber}-${Date.now()}`,
             orderNumber: cleanOrderNumber,
             commentAnalysis: route.commentAnalysis,
-            references: referenceAudit(route.reference),
+            nextSteps: route.nextSteps || [],
             issues: processedIssues,
+            documents: uploadedFiles.map(file=>({name:file.fileName,type:file.fileType,status:processedIssues.some(i=>i.evidence.some(e=>e.document===file.fileName && e.field!=="documentAnalysisStatus"))?"ANALYZED":"UNVERIFIED"})),
             overallDecision,
             status: overallDecision
         };

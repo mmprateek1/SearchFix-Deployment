@@ -1,11 +1,13 @@
-# SearchFix 1.5.0 implementation review
+# SearchFix 1.6.0 implementation
 
-The latest consolidated XLSX is the sole historical reference source. REFERENCE_DATA_REVIEW.md records the source hash, complete row counts, category statistics and excluded records. ISSUE_DOCUMENT_MAP.md lists all 59 issue types and supporting evidence. Historical labels guide interpretation rather than establishing current facts.
+The per-order interface replaces batch start. Clicking an order number reuses the source tab; starting analysis uses the existing isolated reading flow and processes only that task. Other row results remain visible.
 
-Internal authors including ADSSP2 and ADSSearchType terminate before AI calls. Comment classification can finish explicit fee-only, abstractor status-only or no-revision requests as Disputed without evidence collection. Substantive Abstractor claims still require documents: the workbook contains both Accepted and Disputed examples. Unknown/partly unmatched classifications stop with a manual-review explanation, never a generic document mapping. Mixed operational and substantive issues retain separate decisions and request only substantive evidence.
+The backend receives all comments and prepares the latest 15 chronologically. AI returns a supplied comment ID, role and explanation; the service validates that contract and displays the original text. No keyword or author-based code chooses the comment. Ambiguous ADS/Outsource authors are interpreted by AI. Unknown selections require review.
 
-Attachment matching recognizes the additional document families by filename, independent of row position and order prefix. Existing authenticated PDF fetching, order checks, Typing Assistant text capture, sequential queue execution, upload limits, model fallback and quota protection remain. The extension does not change website content.
+AI-selected internal comments finish Ignored. Client operational tasks finish Accepted with a proposed action, without documents. Discrepancy claims use the existing issue/document mappings and current evidence. Document output includes filenames and recommended next steps. Failed processing preserves the chosen comment and never labels failed files analyzed.
 
-Validation: 91 automated tests pass with simulated model responses, including category coverage, author skipping, unknown/mixed classifications, operational guards, document filename precedence, queue navigation suppression and PDF upload/evidence flow. These tests do not measure real Gemini classification accuracy. The search team should check a small live sample after restarting the backend and reloading the extension.
+Historical reference records, import scripts and reference-driven prompts/tests have been removed. General document knowledge is shared by selection, extraction and decision prompts. Real sample facts and outcomes are not embedded. Configuration JSON and quota counters remain necessary runtime state.
 
-Remaining boundaries: loaded rows only, no automatic pagination, PDF attachments only, TA read as text, up to six PDFs with 20 MB each and 40 MB combined. Missing required evidence requires review. Results live in panel memory, and analysis sessions expire after 30 minutes or backend restart. Key saving remains immediate and session-only; fallback models and budget limits are unchanged.
+Validation uses synthetic comments and mocked Gemini. Tests cover chronological windows, AI-selected IDs/roles, operational routing, missing/failed evidence, authenticated PDF bytes, key isolation, saved analysis context and existing fallback/quota protection. The local browser preview covers per-order buttons and all status paths. Live AI accuracy and the hosted service are not established by those tests.
+
+Existing read-only behavior, file limits, model chains and quota policies are preserved. No deployment or Git push is included in this implementation.

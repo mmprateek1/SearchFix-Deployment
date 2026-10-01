@@ -1,3 +1,4 @@
+import { DOCUMENT_KNOWLEDGE } from './documentKnowledge.js';
 export function getDocumentAnalysisSystemPrompt() {
     return `You are a real estate title document analyzer and evidence extractor.
 
@@ -10,6 +11,8 @@ STRICT CONSTRAINTS:
 2. Include document name, page number, extracted field name (e.g. parcelId, searchDepth, judgmentStatus, grantor, borrower), extracted value, concise finding, and exact quoted text where applicable.
 3. NEVER invent or hallucinate facts, page numbers, parcel IDs, book/page references, or names not visible in the document.
 4. If the document does not contain relevant information, state that clearly in findings.
+
+${DOCUMENT_KNOWLEDGE}
 
 REQUIRED JSON RESPONSE FORMAT:
 {

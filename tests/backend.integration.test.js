@@ -1,3 +1,4 @@
+import {selection} from './helpers/selection.js';
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -15,7 +16,7 @@ function response() { return {statusCode:200,body:null,status(code){this.statusC
 test("comments and TA text complete the two-step controller workflow with mocked AI", async () => {
   const originalJSON = geminiService.generateJSON;
   const originalFiles = geminiService.generateContentWithFiles;
-  geminiService.generateJSON = async (system) => system.includes("classification") ? {issues:[{issueType:"TYPING_ERROR",claim:"Verify the typed borrower name against the deed."}]} : {decision:"REVIEW_REQUIRED",reason:"TA text is available but the deed was not supplied."};
+  geminiService.generateJSON = async (system) => system.includes("classification") ? selection([{issueType:"TYPING_ERROR",claim:"Verify the typed borrower name against the deed."}]) : {decision:"REVIEW_REQUIRED",reason:"TA text is available but the deed was not supplied."};
   geminiService.generateContentWithFiles = async (_system, _prompt, parts) => {
     assert.ok(parts.some(p => p.text?.includes("Synthetic Borrower")));
     return {evidence:[{document:"Typing Assistant text",page:7,finding:"TA lists Synthetic Borrower",quotedText:"Synthetic Borrower"}]};
@@ -52,7 +53,7 @@ test("processing errors cannot be submitted to the decision model as factual evi
 
 test("HTTP multipart TA-only requests work through both document routes", async () => {
   const originalJSON=geminiService.generateJSON, originalFiles=geminiService.generateContentWithFiles;
-  geminiService.generateJSON=async(system)=>system.includes("classification") ? {issues:[{issueType:"TYPING_ERROR",claim:"Verify typed name"}]} : {decision:"REVIEW_REQUIRED",reason:"Deed not supplied."};
+  geminiService.generateJSON=async(system)=>system.includes("classification") ? selection([{issueType:"TYPING_ERROR",claim:"Verify typed name"}]) : {decision:"REVIEW_REQUIRED",reason:"Deed not supplied."};
   geminiService.generateContentWithFiles=async()=>({evidence:[{document:"Typing Assistant text",page:null,finding:"Synthetic name shown"}]});
   const app=express();app.use(express.json());app.use("/api/searchfix",routes);
   const server=app.listen(0,"127.0.0.1");

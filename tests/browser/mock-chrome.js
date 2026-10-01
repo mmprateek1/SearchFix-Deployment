@@ -9,10 +9,10 @@ for (const eventName of ['error', 'unhandledrejection']) {
 }
 const origin = 'https://tv.datatracetitle.com';
 const makeOrder = id => ({ pageUrl: `${origin}/OrderOverview.aspx?PublicOrderId=${id}`, orderNumber: id,
-  comments: [{ author: id === 'IGNORED-ORDER' ? 'Test_ADSSearchType' : 'Client', date: '2026-09-24', time: '09:14:00', text: 'Please confirm the borrower name in TA against the deed and provide the missing deed.' }],
+  comments: [{ author: id === 'IGNORED-ORDER' ? 'Test_ADSSearchType' : 'Test_Outsource', date: '2026-09-24', time: '09:14:00', text: id==='TASK-ORDER'?'Please request a rush ETA from the abstractor.':'Please confirm the borrower name in TA against the deed and provide the missing deed.' }],
   tasks: [], queueLinks: [], overviewLinks: [], attachments: [], warnings: ['Synthetic preview: no live orders or AI requests.'], taStatus: 'Typing Assistant · Read-only source' });
 const order = makeOrder('SYNTHETIC-1');
-const tasks = ['IGNORED-ORDER','SYNTHETIC-1','DISPUTED-ORDER','MISSING-ORDER'].map(id => ({name:id,orderNumber:id,url:makeOrder(id).pageUrl}));
+const tasks = ['IGNORED-ORDER','SYNTHETIC-1','DISPUTED-ORDER','MISSING-ORDER','TASK-ORDER'].map(id => ({name:id,orderNumber:id,url:makeOrder(id).pageUrl}));
 let nextId = 2;
 const tabs = new Map([[1,{id:1,url:order.pageUrl,status:'complete',title:'Synthetic order'}]]);
 const session = {};
@@ -48,13 +48,14 @@ window.fetch = async (url, options) => {
   }
   const body=String(url).endsWith('analyze-comments')?JSON.parse(options.body):JSON.parse(options.body.get('orderData'));
   const source=makeOrder(body.orderNumber);
-  const common={orderNumber:source.orderNumber,analysisId:'SYNTHETIC-ANALYSIS',commentAnalysis:{selectedComment:{...source.comments[0],role:source.orderNumber==='IGNORED-ORDER'?'INTERNAL':'CLIENT'},contextCommentsUsed:[]}};
+  const common={orderNumber:source.orderNumber,analysisId:'SYNTHETIC-ANALYSIS',commentAnalysis:{selectedComment:{...source.comments[0],role:source.orderNumber==='IGNORED-ORDER'?'INTERNAL':'CLIENT'},contextCommentsUsed:[],selectionReason:"This is the latest meaningful request in the supplied comments.",roleReason:source.orderNumber==='IGNORED-ORDER'?"ADS author and internal response context.":"Outsource author and client request context.",totalComments:1,consideredComments:1}};
+  if(source.orderNumber==='TASK-ORDER')return new Response(JSON.stringify({...common,status:'ACCEPTED',overallDecision:'ACCEPTED',decisionBasis:'CLIENT_TASK',issues:[],documents:[],reason:'Client requests a rush ETA; no discrepancy is alleged.',nextSteps:['Contact the abstractor for an ETA and report back to the client.']}));
   if(String(url).endsWith('analyze-comments')) {
     return new Response(JSON.stringify(source.orderNumber==='IGNORED-ORDER'?{...common,status:'IGNORED',overallDecision:'IGNORED',reason:'ADSSearchType author.',issues:[]}:{...common,status:'AWAITING_DOCUMENTS',issues:[{issueType:'TYPING_ERROR',claim:'Verify the typed borrower name against the deed.',requiredFiles:[{fileType:'DEED'},{fileType:'TYPED_REPORT'}]}]}));
   }
   if(String(url).endsWith('analyze-documents')) {
     const decision=options.body.has('file0')&&body.taText?(body.orderNumber==='DISPUTED-ORDER'?'DISPUTED':'ACCEPTED'):'REVIEW_REQUIRED';
-    return new Response(JSON.stringify({...common,status:decision,overallDecision:decision,issues:[{issueType:'TYPING_ERROR',category:'Typing',clientClaim:'Verify borrower name',requiredDocuments:['DEED','TYPED_REPORT'],decision,reason:decision==='ACCEPTED'?'Synthetic evidence supports the claim.':decision==='DISPUTED'?'Synthetic evidence contradicts the claim.':'Deed or TA was not supplied.',evidence:body.taText?[{document:'Typing Assistant text',page:null,finding:'Synthetic Borrower appears in the TA text.'}]:[]}]}));
+    return new Response(JSON.stringify({...common,status:decision,overallDecision:decision,documents:[...(options.body.has('file0')?[{name:'Deed.pdf',type:'DEED',status:'ANALYZED'}]:[]),{name:'Typing Assistant text',type:'TYPED_REPORT',status:'ANALYZED'}],issues:[{nextSteps:[decision==='ACCEPTED'?'Have the search team correct the identified name and recheck it.':decision==='DISPUTED'?'Send the cited evidence to the search team for the response.':'Obtain the missing deed and rerun this order.'],issueType:'TYPING_ERROR',category:'Typing',clientClaim:'Verify borrower name',requiredDocuments:['DEED','TYPED_REPORT'],decision,reason:decision==='ACCEPTED'?'Synthetic evidence supports the claim.':decision==='DISPUTED'?'Synthetic evidence contradicts the claim.':'Deed or TA was not supplied.',evidence:body.taText?[{document:'Typing Assistant text',page:null,finding:'Synthetic Borrower appears in the TA text.'}]:[]}]}));
   }
   throw new Error('Unexpected preview request');
 };

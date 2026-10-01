@@ -73,11 +73,14 @@ export function buildAssistantText(result) {
   if (result.reason) lines.push(result.reason, "");
   const selected = result.commentAnalysis?.selectedComment;
   if (selected) lines.push(`Comment reviewed (${selected.author || "Unknown"}):`, selected.text, "");
+  if (result.commentAnalysis?.selectionReason) lines.push(`Why AI chose it: ${result.commentAnalysis.selectionReason}`, `Author interpretation: ${result.commentAnalysis.roleReason || selected?.role || "Unknown"}`, "");
+  if (result.decisionBasis === "CLIENT_TASK") lines.push("Client task acknowledged for human action; no document error has been established.", "");
   if (decision === "IGNORED") {
-    lines.push("Order ignored. No supporting documents were analyzed; processing continues with the next SearchFix order.");
+    lines.push("Order ignored. No supporting documents were analyzed; select another order when ready.");
   } else {
     for (const [index, issue] of (result.issues || []).entries()) {
       lines.push(`${index + 1}. What the client needs: ${issue.claim || issue.clientClaim}`);
+      if (issue.nextSteps?.length) lines.push("Next steps:", ...issue.nextSteps.map(step=>`- ${step}`));
       if (issue.category) lines.push(`Category: ${issue.category}`);
       if (issue.decision) lines.push(`Assessment: ${issue.decision.replaceAll("_", " ")}`, issue.reason || "");
       if (issue.requiredFiles?.length) lines.push(`Files to check: ${issue.requiredFiles.map(f => f.fileType.replaceAll("_", " ")).join(", ")}`);
@@ -90,10 +93,8 @@ export function buildAssistantText(result) {
     if (result.status === "AWAITING_DOCUMENTS") lines.push("Next step: review the relevant attachments below. The client's request has not yet been verified against documents.");
     else lines.push("Next step: check the cited evidence and any REVIEW REQUIRED items before deciding what to tell the client.");
   }
-  if (result.references) {
-    lines.push("", `References consulted: ${result.references.sources.join("; ")}`, result.references.note);
-    for (const example of result.references.examples) lines.push(`Historical comparison (${example.category}, ${example.outcome}): ${example.sources.map(s=>`${s.file}, ${s.sheet}, row ${s.row}`).join("; ")}`);
-  }
+  for (const document of result.documents || []) lines.push(`Document: ${document.name} — ${document.status.replaceAll("_", " ")}`);
+  if (result.nextSteps?.length) lines.push("", "Next steps:", ...result.nextSteps.map(step=>`- ${step}`));
   lines.push("", "Review notes only. No order fields, files, comments, or website Typing Assistant content have been changed.");
   return lines.join("\n");
 }
