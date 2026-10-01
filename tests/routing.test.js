@@ -85,12 +85,12 @@ test("model routing separates comments from document extraction and evidence dec
     await geminiService.generateJSON("system", "comments");
     await geminiService.generateContentWithFiles("system", "documents", []);
     await geminiService.generateJSON("system", "evidence decision", "documents");
-    assert.deepEqual(calls, ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.8-flash"]);
+    assert.deepEqual(calls, ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.5-flash"]);
     geminiService.ai.models.generateContent = async request => { calls.push(request.model); throw new Error("Model unavailable for this account"); };
     await assert.rejects(geminiService.generateJSON("system", "comment"), /Gemini request failed/);
     assert.equal(calls.length, 4);
     process.env.GEMINI_COMMENT_MODEL = "comment-override"; process.env.GEMINI_DOCUMENT_MODEL = "document-override";
-    assert.equal(modelFor(), "gemini-3.5-flash-lite"); assert.equal(modelFor("documents"), "gemini-3.8-flash");
+    assert.equal(modelFor(), "gemini-3.5-flash-lite"); assert.equal(modelFor("documents"), "gemini-3.5-flash");
   } finally {
     geminiService.ai = original;
     for (const [name, value] of [["GEMINI_COMMENT_MODEL", saved.comment], ["GEMINI_DOCUMENT_MODEL", saved.document], ["GEMINI_MODEL", saved.legacy]]) {

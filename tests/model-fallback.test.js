@@ -12,8 +12,8 @@ class GeminiService extends BaseGeminiService {
 const providerError = status => Object.assign(new Error('Private provider URL and key'), { status });
 
 test('requested chains are kept in exact order', () => {
-    assert.deepEqual(TEXT_FALLBACK_CHAIN, ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash']);
-    assert.deepEqual(DOCUMENT_FALLBACK_CHAIN, ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash']);
+    assert.deepEqual(TEXT_FALLBACK_CHAIN, ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
+    assert.deepEqual(DOCUMENT_FALLBACK_CHAIN, ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
 });
 
 test('text and PDF requests advance in order while preserving all prompt and evidence data', async () => {
@@ -68,7 +68,7 @@ test('unavailable chains fail safely and overload retries on the final model sta
             assert.doesNotMatch(error.message, /Private provider/);
             return true;
         });
-        assert.deepEqual(calls, status === 404 ? DOCUMENT_FALLBACK_CHAIN : [...DOCUMENT_FALLBACK_CHAIN, 'gemini-2.5-flash', 'gemini-2.5-flash']);
+        assert.deepEqual(calls, status === 404 ? DOCUMENT_FALLBACK_CHAIN : [...DOCUMENT_FALLBACK_CHAIN, 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite']);
         assert.deepEqual(waits, status === 404 ? [] : [1000, 2000]);
     }
 });
@@ -77,13 +77,13 @@ test('key verification succeeds when only a fallback in each chain is accessible
     const calls = [];
     const service = new GeminiService({ models: { generateContent: async ({ model }) => {
         calls.push(model);
-        if (model !== 'gemini-3.5-flash') throw providerError(404);
+        if (model !== 'gemini-3.1-flash-lite') throw providerError(404);
         return { text: 'OK' };
     } } });
     const result = await service.validateKey();
     assert.equal(result.valid, true);
-    assert.deepEqual(result.models, ['gemini-3.5-flash', 'gemini-3.5-flash']);
-    assert.deepEqual(calls, [...TEXT_FALLBACK_CHAIN, ...DOCUMENT_FALLBACK_CHAIN.slice(0, 4)]);
+    assert.deepEqual(result.models, ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite']);
+    assert.deepEqual(calls, [...TEXT_FALLBACK_CHAIN, ...DOCUMENT_FALLBACK_CHAIN.slice(0, 3)]);
 });
 
 test('concurrent fallback chains keep request credentials isolated and restart at the primary per call', async () => {

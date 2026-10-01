@@ -176,8 +176,8 @@ test('key verification switches models after temporary failure and reports the w
   }}},{budget:null,wait:async ms=>waits.push(ms)});
   const result=await service.validateKey();
   assert.equal(result.valid,true);
-  assert.deepEqual(calls,['gemini-3.5-flash-lite','gemini-3.8-flash','gemini-3.7-flash']);
-  assert.deepEqual(result.models,['gemini-3.5-flash-lite','gemini-3.7-flash']);
+  assert.deepEqual(calls,['gemini-3.5-flash-lite','gemini-3.5-flash','gemini-3.5-flash-lite']);
+  assert.deepEqual(result.models,['gemini-3.5-flash-lite','gemini-3.5-flash-lite']);
   assert.deepEqual(waits,[]);
 });
 
@@ -190,7 +190,7 @@ test('persistent 503 failures stay bounded and are distinguished from bad creden
     assert.equal(error.status,503);assert.match(error.message,/temporarily unavailable/);
     assert.doesNotMatch(error.message,/secret provider URL/);return true;
   });
-  assert.equal(calls,5);assert.deepEqual(waits,[1000,2000]);
+  assert.equal(calls,4);assert.deepEqual(waits,[1000,2000]);
 });
 
 test('key validation route preserves temporary-service and quota status',async()=>{

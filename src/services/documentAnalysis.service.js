@@ -44,7 +44,12 @@ export class DocumentAnalysisService {
                 if (file.path) {
                     fileParts.push({text:`The next PDF source is named ${file.fileName}. Use this exact document name for its evidence.`});
                     try {
-                        const inlinePart = geminiService.createInlinePdfPart(file.path);
+                        if (!this.partCache) this.partCache = new Map();
+                        let inlinePart = this.partCache.get(file.path);
+                        if (!inlinePart) {
+                            inlinePart = geminiService.createInlinePdfPart(file.path);
+                            this.partCache.set(file.path, inlinePart);
+                        }
                         fileParts.push(inlinePart);
                     } catch (err) {
                         console.warn(`[DocumentAnalysisService] Base64 inline fallback for ${file.fileName}, trying Files API:`, err.message);

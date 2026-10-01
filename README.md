@@ -23,7 +23,7 @@ The original files remain unchanged. The prepared library is in `data/reference`
 
 ## Preserved behavior
 
-- Comments start with `gemini-3.5-flash-lite`; document analysis and evidence decisions start with `gemini-3.8-flash`. Both use the ordered fallback chains below.
+- Comments start with `gemini-3.5-flash-lite`; document analysis and evidence decisions start with `gemini-3.5-flash`. Both use the ordered fallback chains below.
 - Selected internal-user comments, including ADSSearchType and ADSSP2, are ignored before AI calls. Fee-only approval requests, abstractor status/ETA-only updates and explicit no-revision requests finish Disputed without document analysis. Mixed substantive claims still need current evidence.
 - Unsupported claims return Review required with a manual-classification explanation; there is no catch-all issue or default document mapping.
 - Required PDFs come from the verified order's Attachments view. TA comes only from Typing Assistant text.
